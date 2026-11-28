@@ -3,7 +3,6 @@
  * @typedef {Array<import("../coordinate.js").Coordinate>} LineCoordType
  */
 
-import {distance} from '../coordinate.js';
 import GeometryCollection from '../geom/GeometryCollection.js';
 import LineString from '../geom/LineString.js';
 import MultiLineString from '../geom/MultiLineString.js';
@@ -175,18 +174,33 @@ export function getTraceTargetUpdate(
   const newTarget = targets[newTargetIndex];
   let considerBothDirections = newTarget.ring;
   if (traceState.targetIndex === newTargetIndex && considerBothDirections) {
-    // only consider switching trace direction if close to the start
-    const newCoordinate = interpolateCoordinate(
-      newTarget.coordinates,
-      newEndIndex,
-    );
-    const pixel = map.getPixelFromCoordinate(newCoordinate);
+    // Allow switching trace direction when the pointer step (from the
+    // previous position to the new position) passes close to the start.
+    // Checking the whole step instead of only the endpoint handles the
+    // case where a fast mouse movement crosses the start without landing
+    // near it.
     const startCoord = traceState.startCoord;
-    if (
-      startCoord &&
-      distance(pixel, map.getPixelFromCoordinate(startCoord)) > snapTolerance
-    ) {
-      considerBothDirections = false;
+    if (startCoord) {
+      const startPixel = map.getPixelFromCoordinate(startCoord);
+      const prevCoordinate = interpolateCoordinate(
+        newTarget.coordinates,
+        newTarget.endIndex,
+      );
+      const prevPixel = map.getPixelFromCoordinate(prevCoordinate);
+      const newCoordinate = interpolateCoordinate(
+        newTarget.coordinates,
+        newEndIndex,
+      );
+      const newPixel = map.getPixelFromCoordinate(newCoordinate);
+      const rel = getPointSegmentRelationship(
+        startPixel[0],
+        startPixel[1],
+        prevPixel,
+        newPixel,
+      );
+      if (Math.sqrt(rel.squaredDistance) > snapTolerance) {
+        considerBothDirections = false;
+      }
     }
   }
 
